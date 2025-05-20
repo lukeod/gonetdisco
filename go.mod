@@ -1,4 +1,4 @@
-module go-netdiscover
+module github.com/lukeod/gonetdisco
 
 go 1.20
 

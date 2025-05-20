@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"go-netdiscover/datamodel"
+	"github.com/lukeod/gonetdisco/datamodel"
 )
 
 // OutputManager handles the presentation of discovery results.

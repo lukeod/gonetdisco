@@ -1,5 +1,5 @@
 // Package datamodel defines the core data structures used throughout the
-// go-netdiscover application, including configuration structures parsed
+// gonetdisco application, including configuration structures parsed
 // from YAML and the structures for storing discovery results.
 package datamodel
 
@@ -44,12 +44,13 @@ type SNMPConfig struct {
 	ContextName     string `yaml:"context_name,omitempty"`
 }
 
-// ProfileConfig defines a named profile that groups ICMP, SNMP, and DNS scanning parameters.
+// ProfileConfig defines a named profile that groups ICMP, SNMP, DNS, and TCP scanning parameters.
 type ProfileConfig struct {
 	Name    string      `yaml:"name"`   // Unique identifier for this profile
 	ICMP    ICMPProfile `yaml:"icmp"`
 	SNMP    SNMPProfile `yaml:"snmp"`
 	DNS     DNSProfile  `yaml:"dns"`
+	TCP     TCPProfile  `yaml:"tcp"`
 }
 
 // ICMPProfile contains parameters for ICMP scanning.
@@ -78,6 +79,20 @@ type DNSProfile struct {
 	DNSServers                    []string `yaml:"dns_servers,omitempty"` // Profile-specific DNS servers, overrides global
 }
 
+// TCPProfile contains parameters for TCP port scanning.
+type TCPProfile struct {
+	IsEnabled      bool  `yaml:"is_enabled"`
+	TimeoutSeconds int   `yaml:"timeout_seconds"` // Timeout for TCP connection attempts
+	Ports          []int `yaml:"ports"`           // List of ports to scan
+}
+
+// TCPConfig is used internally for passing TCP scanning parameters.
+type TCPConfig struct {
+	Enabled bool
+	Timeout int
+	Ports   []int
+}
+
 // Result Structures
 
 // DiscoveredDevice represents a device found during the scan.
@@ -88,6 +103,7 @@ type DiscoveredDevice struct {
 	ICMPResult  *ICMPScanResult `json:"icmp_result,omitempty"`
 	SNMPResult  *SNMPScanResult `json:"snmp_result,omitempty"`
 	DNSResult   *DNSScanResult  `json:"dns_result,omitempty"`
+	TCPResult   *TCPScanResult  `json:"tcp_result,omitempty"`
 	Timestamp   string          `json:"timestamp"`      // ISO8601 timestamp of discovery
 	Errors      []string        `json:"errors,omitempty"` // Any errors encountered during scanning this device
 }
@@ -120,6 +136,13 @@ type DNSScanResult struct {
 	PTRRecords           []string            `json:"ptr_records,omitempty"` // Results of reverse lookup
 	ForwardLookupResults map[string][]string `json:"forward_lookup_results,omitempty"` // hostname -> []IPs
 	Errors               []string            `json:"errors,omitempty"` // Errors during DNS lookups
+}
+
+// TCPScanResult contains results from a TCP port scan.
+type TCPScanResult struct {
+	Reachable    bool           `json:"reachable"`      // At least one port is open
+	OpenPorts    map[int]string `json:"open_ports"`     // Map of port numbers to service names
+	ResponseTime float64        `json:"response_time,omitempty"` // Average response time in seconds
 }
 
 // Internal Structures

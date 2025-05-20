@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"go-netdiscover/datamodel"
+	"github.com/lukeod/gonetdisco/datamodel"
 )
 
 // PerformLookups performs DNS lookups based on the profile.

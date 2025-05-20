@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"go-netdiscover/datamodel"
-	"go-netdiscover/logger"
+	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/logger"
 	probing "github.com/prometheus-community/pro-bing"
 )
 

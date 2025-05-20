@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"go-netdiscover/datamodel"
+	"github.com/lukeod/gonetdisco/datamodel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -58,6 +58,11 @@ func setDefaults(cfg *datamodel.Config) {
 			// Default to true - skip additional tasks if IP doesn't respond to ping
 			cfg.Profiles[i].ICMP.SkipIfUnreachable = true
 		}
+		
+		// Set default timeout for TCP scanning if not specified
+		if cfg.Profiles[i].TCP.IsEnabled && cfg.Profiles[i].TCP.TimeoutSeconds == 0 {
+			cfg.Profiles[i].TCP.TimeoutSeconds = 2 // Default to 2 seconds
+		}
 	}
 }
 
@@ -78,6 +83,11 @@ func validateConfig(cfg *datamodel.Config) error {
 			return fmt.Errorf("duplicate profile name found: %s", p.Name)
 		}
 		profileNames[p.Name] = true
+		
+		// Initialize TCP profile if not set
+		if p.TCP.IsEnabled && len(p.TCP.Ports) == 0 {
+			return fmt.Errorf("TCP profile for '%s' is enabled but has no ports specified", p.Name)
+		}
 	}
 
 	snmpConfigNames := make(map[string]bool)
@@ -171,6 +181,20 @@ func validateConfig(cfg *datamodel.Config) error {
 				// Basic validation for DNS server format
 				if !strings.Contains(server, ":") {
 					return fmt.Errorf("DNS server '%s' in profile '%s' must include port (e.g., '8.8.8.8:53')", server, p.Name)
+				}
+			}
+		}
+		
+		if p.TCP.IsEnabled {
+			if p.TCP.TimeoutSeconds <= 0 {
+				return fmt.Errorf("TCP profile for '%s' has invalid timeout: %d", p.Name, p.TCP.TimeoutSeconds)
+			}
+			if len(p.TCP.Ports) == 0 {
+				return fmt.Errorf("TCP profile for '%s' is enabled but has no ports specified", p.Name)
+			}
+			for _, port := range p.TCP.Ports {
+				if port <= 0 || port > 65535 {
+					return fmt.Errorf("TCP profile for '%s' has invalid port number: %d", p.Name, port)
 				}
 			}
 		}

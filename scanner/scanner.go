@@ -2,15 +2,17 @@
 package scanner
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	"go-netdiscover/datamodel"
-	"go-netdiscover/dns"
-	"go-netdiscover/icmp"
-	"go-netdiscover/logger"
-	"go-netdiscover/snmp"
+	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/dns"
+	"github.com/lukeod/gonetdisco/icmp"
+	"github.com/lukeod/gonetdisco/logger"
+	"github.com/lukeod/gonetdisco/snmp"
+	"github.com/lukeod/gonetdisco/tcp"
 )
 
 // Scanner is the core orchestrator of the network discovery process.
@@ -232,6 +234,42 @@ func (s *Scanner) scanWorker(workerID int) {
 					responded = true
 				}
 				discoveredDevice.DNSResult = dnsRes
+			}
+		}
+		
+		// 4. TCP Port Scan
+		if job.Profile.TCP.IsEnabled && !shouldSkipRemaining {
+			log.Debug("Performing TCP port scan", "ip", job.IPAddress)
+			
+			// Create a context with timeout for the TCP scan
+			ctx, cancel := context.WithTimeout(
+				context.Background(), 
+				time.Duration(job.Profile.TCP.TimeoutSeconds+5)*time.Second,
+			)
+			defer cancel()
+			
+			tcpConfig := &datamodel.TCPConfig{
+				Enabled: job.Profile.TCP.IsEnabled,
+				Timeout: job.Profile.TCP.TimeoutSeconds,
+				Ports:   job.Profile.TCP.Ports,
+			}
+			
+			tcpRes, err := tcp.ScanTCP(ctx, job.IPAddress, tcpConfig)
+			if err != nil {
+				errMsg := fmt.Sprintf("TCP scan error: %v", err)
+				log.Error("TCP scan failed", "ip", job.IPAddress, "error", err)
+				discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
+			}
+			
+			if tcpRes != nil {
+				log.Debug("TCP scan complete", 
+					"ip", job.IPAddress, 
+					"reachable", tcpRes.Reachable, 
+					"open_ports", len(tcpRes.OpenPorts))
+				discoveredDevice.TCPResult = tcpRes
+				if tcpRes.Reachable {
+					responded = true
+				}
 			}
 		}
 

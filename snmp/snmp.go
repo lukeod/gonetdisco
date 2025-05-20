@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"go-netdiscover/datamodel"
-	"go-netdiscover/logger"
+	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/logger"
 	g "github.com/gosnmp/gosnmp"
 )
 

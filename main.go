@@ -1,4 +1,4 @@
-// Package main is the entry point for the go-netdiscover application.
+// Package main is the entry point for the gonetdisco application.
 package main
 
 import (
@@ -9,11 +9,11 @@ import (
 	"runtime"
 	"strings"
 
-	"go-netdiscover/config"
-	"go-netdiscover/datamodel"
-	"go-netdiscover/logger"
-	"go-netdiscover/output"
-	"go-netdiscover/scanner"
+	"github.com/lukeod/gonetdisco/config"
+	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/logger"
+	"github.com/lukeod/gonetdisco/output"
+	"github.com/lukeod/gonetdisco/scanner"
 )
 
 // ipToUint32 converts an IPv4 address to uint32 for arithmetic operations
@@ -172,5 +172,5 @@ func main() {
 	outputMgr.Start()
 	
 	logger.Info("Discovery process completed")
-	fmt.Println("go-netdiscover finished.")
+	fmt.Println("gonetdisco finished.")
 }
