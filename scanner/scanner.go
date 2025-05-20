@@ -171,13 +171,16 @@ func (s *Scanner) scanWorker(workerID int) {
 			}
 		}
 
-		// Send to results channel only if the device responded in some way
+		// Set the responded flag based on whether the device responded to any scan method
+		discoveredDevice.Responded = responded
+		
+		// Always send to results channel to track all scanned IPs
 		if responded {
 			log.Debug("Device responded, sending to results channel", "ip", job.IPAddress)
-			s.ResultsChannel <- discoveredDevice
 		} else {
-			log.Debug("Device did not respond, skipping", "ip", job.IPAddress)
+			log.Debug("Device did not respond, still sending to results channel for tracking", "ip", job.IPAddress)
 		}
+		s.ResultsChannel <- discoveredDevice
 	}
 }
 

@@ -106,6 +106,7 @@ type DiscoveredDevice struct {
 	TCPResult   *TCPScanResult  `json:"tcp_result,omitempty"`
 	Timestamp   string          `json:"timestamp"`        // ISO8601 timestamp of discovery
 	Errors      []string        `json:"errors,omitempty"` // Any errors encountered during scanning this device
+	Responded   bool            `json:"responded"`        // Whether the device responded to any scan method
 }
 
 // ICMPScanResult contains results from an ICMP scan attempt.

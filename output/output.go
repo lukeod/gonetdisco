@@ -22,8 +22,8 @@ type OutputManager struct {
 
 	// Terminal UI related fields
 	TotalIPsToScan       int // Needs to be estimated or passed by the scanner
-	ScannedIPsCount      int
-	DiscoveredHostsCount int
+	ScannedIPsCount      int // Total IPs scanned (both responsive and non-responsive)
+	RespondedIPsCount    int // Count of IPs that responded to at least one scan method
 	LastNDevices         []datamodel.DiscoveredDevice // For displaying last N discovered devices
 	MaxLastNDevices      int                          // Configurable N, e.g., 5 or 10
 	StartTime            time.Time
@@ -56,14 +56,20 @@ func (om *OutputManager) Start() {
 	for device := range om.ResultsChannel {
 		om.Mutex.Lock()
 		om.ScannedIPsCount++
-		om.DiscoveredHostsCount++
-		om.AllDiscoveredDevices = append(om.AllDiscoveredDevices, device)
-
-		// Update Last N Devices
-		om.LastNDevices = append([]datamodel.DiscoveredDevice{device}, om.LastNDevices...)
-		if len(om.LastNDevices) > om.MaxLastNDevices {
-			om.LastNDevices = om.LastNDevices[:om.MaxLastNDevices]
+		
+		// Only count responsive devices for the discovered count
+		if device.Responded {
+			om.RespondedIPsCount++
+			
+			// Update Last N Devices only for responsive devices
+			om.LastNDevices = append([]datamodel.DiscoveredDevice{device}, om.LastNDevices...)
+			if len(om.LastNDevices) > om.MaxLastNDevices {
+				om.LastNDevices = om.LastNDevices[:om.MaxLastNDevices]
+			}
 		}
+		
+		// Store all devices for the final JSON output
+		om.AllDiscoveredDevices = append(om.AllDiscoveredDevices, device)
 		om.Mutex.Unlock()
 	}
 
@@ -77,7 +83,7 @@ func (om *OutputManager) Start() {
 	om.clearTerminal()
 	fmt.Println("Scan Complete.")
 	fmt.Printf("Total IPs Scanned: %d\n", om.ScannedIPsCount)
-	fmt.Printf("Total Devices Discovered: %d\n", om.DiscoveredHostsCount)
+	fmt.Printf("Total Devices Discovered: %d\n", om.RespondedIPsCount)
 	fmt.Printf("Results saved to: %s\n", om.ConfiguredOutputPath)
 }
 
@@ -92,7 +98,7 @@ func (om *OutputManager) runTerminalUIUpdater() {
 		case <-ticker.C:
 			om.Mutex.Lock()
 			scanned := om.ScannedIPsCount
-			discovered := om.DiscoveredHostsCount
+			responded := om.RespondedIPsCount
 			total := om.TotalIPsToScan
 			lastN := make([]datamodel.DiscoveredDevice, len(om.LastNDevices)) // Create a copy
 			copy(lastN, om.LastNDevices)
@@ -101,14 +107,14 @@ func (om *OutputManager) runTerminalUIUpdater() {
 
 			om.clearTerminal()
 
-			// Calculate Progress
+			// Calculate Progress based on all scanned IPs, not just responsive ones
 			progressPercent := 0.0
 			if total > 0 {
 				progressPercent = (float64(scanned) / float64(total)) * 100
 			}
 			fmt.Printf("Progress: [%-50s] %.2f%%\n", om.renderProgressBar(progressPercent), progressPercent)
 			fmt.Printf("Scanned: %d / %d IPs\n", scanned, total)
-			fmt.Printf("Discovered: %d Hosts\n", discovered)
+			fmt.Printf("Responsive: %d IPs (%.1f%%)\n", responded, calculatePercentage(responded, scanned))
 
 			// Calculate Elapsed Time & ETA
 			elapsed := time.Since(startTime)
@@ -164,6 +170,14 @@ func (om *OutputManager) runTerminalUIUpdater() {
 	}
 }
 
+// calculatePercentage calculates a percentage, handling division by zero
+func calculatePercentage(part, total int) float64 {
+	if total == 0 {
+		return 0.0
+	}
+	return (float64(part) / float64(total)) * 100.0
+}
+
 // clearTerminal clears the terminal screen (or moves cursor to clean area).
 func (om *OutputManager) clearTerminal() {
 	// Use ANSI escape code to clear screen and move cursor to top-left
@@ -202,8 +216,17 @@ func (om *OutputManager) WriteJSONOutput() {
 	copy(devicesCopy, om.AllDiscoveredDevices) // Work on a copy
 	om.Mutex.Unlock()
 
-	if len(devicesCopy) == 0 {
-		fmt.Println("No devices discovered to write to JSON.")
+	// Filter to only include devices that responded unless all are empty
+	responsiveDevices := make([]datamodel.DiscoveredDevice, 0)
+	for _, device := range devicesCopy {
+		if device.Responded {
+			responsiveDevices = append(responsiveDevices, device)
+		}
+	}
+
+	// Only write responsive devices to the JSON output
+	if len(responsiveDevices) == 0 {
+		fmt.Println("No responsive devices discovered to write to JSON.")
 		// Write an empty array to the file
 		jsonData, _ := json.MarshalIndent([]datamodel.DiscoveredDevice{}, "", "  ")
 		err := os.WriteFile(om.ConfiguredOutputPath, jsonData, 0644)
@@ -214,26 +237,26 @@ func (om *OutputManager) WriteJSONOutput() {
 	}
 
 	// Sanitize floating point values to avoid JSON marshalling errors with -Inf, +Inf, NaN
-	for i := range devicesCopy {
-		if devicesCopy[i].ICMPResult != nil {
+	for i := range responsiveDevices {
+		if responsiveDevices[i].ICMPResult != nil {
 			// Handle RTT_ms special values
-			if devicesCopy[i].ICMPResult.RTT_ms < 0 || 
-			   math.IsInf(devicesCopy[i].ICMPResult.RTT_ms, 0) || 
-			   math.IsNaN(devicesCopy[i].ICMPResult.RTT_ms) {
-				devicesCopy[i].ICMPResult.RTT_ms = 0
+			if responsiveDevices[i].ICMPResult.RTT_ms < 0 || 
+			   math.IsInf(responsiveDevices[i].ICMPResult.RTT_ms, 0) || 
+			   math.IsNaN(responsiveDevices[i].ICMPResult.RTT_ms) {
+				responsiveDevices[i].ICMPResult.RTT_ms = 0
 			}
 		}
-		if devicesCopy[i].TCPResult != nil {
+		if responsiveDevices[i].TCPResult != nil {
 			// Handle ResponseTime special values
-			if devicesCopy[i].TCPResult.ResponseTime < 0 || 
-			   math.IsInf(devicesCopy[i].TCPResult.ResponseTime, 0) || 
-			   math.IsNaN(devicesCopy[i].TCPResult.ResponseTime) {
-				devicesCopy[i].TCPResult.ResponseTime = 0
+			if responsiveDevices[i].TCPResult.ResponseTime < 0 || 
+			   math.IsInf(responsiveDevices[i].TCPResult.ResponseTime, 0) || 
+			   math.IsNaN(responsiveDevices[i].TCPResult.ResponseTime) {
+				responsiveDevices[i].TCPResult.ResponseTime = 0
 			}
 		}
 	}
 
-	jsonData, err := json.MarshalIndent(devicesCopy, "", "  ")
+	jsonData, err := json.MarshalIndent(responsiveDevices, "", "  ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshalling results to JSON: %v\n", err)
 		return
