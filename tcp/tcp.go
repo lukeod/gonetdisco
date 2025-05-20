@@ -3,6 +3,7 @@ package tcp
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -50,10 +51,16 @@ func ScanTCP(ctx context.Context, ip string, config *datamodel.TCPConfig) (*data
 				// Connection successful, port is open
 				service := getServiceName(p) // Get common service name for this port
 
+				// Calculate response time safely
+				respTime := scanDuration.Seconds()
+				if respTime < 0 || math.IsInf(respTime, 0) || math.IsNaN(respTime) {
+					respTime = 0
+				}
+				
 				mutex.Lock()
 				result.Reachable = true
 				result.OpenPorts[p] = service
-				result.ResponseTime = scanDuration.Seconds()
+				result.ResponseTime = respTime
 				mutex.Unlock()
 
 				logger.Debug(fmt.Sprintf("TCP port %d is open on %s (service: %s)", p, ip, service))

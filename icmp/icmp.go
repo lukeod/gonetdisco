@@ -4,6 +4,7 @@ package icmp
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/lukeod/gonetdisco/datamodel"
@@ -64,13 +65,25 @@ func PerformPing(ipAddress string, profile datamodel.ICMPProfile) (*datamodel.IC
 		if !firstResponseReceived {
 			firstResponseReceived = true
 
+			// Calculate packet loss percentage safely
+			var lossPercent float64 = 0
+			if pkt.Seq > 0 {
+				lossPercent = float64(pkt.Seq-1) * 100 / float64(pkt.Seq)
+			}
+
+			// Calculate RTT in milliseconds safely
+			rttMs := float64(pkt.Rtt.Nanoseconds()) / 1e6
+			if rttMs < 0 || math.IsInf(rttMs, 0) || math.IsNaN(rttMs) {
+				rttMs = 0
+			}
+
 			// Create the result with just this packet
 			result = datamodel.ICMPScanResult{
 				IsReachable:       true,
-				PacketsSent:       pkt.Seq,                                     // How many we sent before getting a response
-				PacketsReceived:   1,                                           // We got exactly one response
-				PacketLossPercent: float64(pkt.Seq-1) * 100 / float64(pkt.Seq), // Loss % based on packets sent before success
-				RTT_ms:            float64(pkt.Rtt.Nanoseconds()) / 1e6,        // Single RTT value
+				PacketsSent:       pkt.Seq,     // How many we sent before getting a response
+				PacketsReceived:   1,           // We got exactly one response
+				PacketLossPercent: lossPercent, // Loss % based on packets sent before success
+				RTT_ms:            rttMs,       // Single RTT value
 			}
 
 			// Stop pinging after the first successful response
@@ -99,7 +112,12 @@ func PerformPing(ipAddress string, profile datamodel.ICMPProfile) (*datamodel.IC
 
 			// Add RTT data if we have received packets (shouldn't happen with early stop)
 			if stats.PacketsRecv > 0 {
-				result.RTT_ms = float64(stats.MinRtt.Nanoseconds()) / 1e6 // Just use the min RTT
+				// Calculate RTT safely
+				rttMs := float64(stats.MinRtt.Nanoseconds()) / 1e6 
+				if rttMs < 0 || math.IsInf(rttMs, 0) || math.IsNaN(rttMs) {
+					rttMs = 0
+				}
+				result.RTT_ms = rttMs // Just use the min RTT
 				log.Debug("Ping completed without early stop", "ip", ipAddress, "rtt_ms", result.RTT_ms)
 			} else {
 				log.Debug("Ping completed with no responses", "ip", ipAddress)

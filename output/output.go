@@ -5,6 +5,7 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -210,6 +211,26 @@ func (om *OutputManager) WriteJSONOutput() {
 			fmt.Fprintf(os.Stderr, "Error writing empty JSON output to %s: %v\n", om.ConfiguredOutputPath, err)
 		}
 		return
+	}
+
+	// Sanitize floating point values to avoid JSON marshalling errors with -Inf, +Inf, NaN
+	for i := range devicesCopy {
+		if devicesCopy[i].ICMPResult != nil {
+			// Handle RTT_ms special values
+			if devicesCopy[i].ICMPResult.RTT_ms < 0 || 
+			   math.IsInf(devicesCopy[i].ICMPResult.RTT_ms, 0) || 
+			   math.IsNaN(devicesCopy[i].ICMPResult.RTT_ms) {
+				devicesCopy[i].ICMPResult.RTT_ms = 0
+			}
+		}
+		if devicesCopy[i].TCPResult != nil {
+			// Handle ResponseTime special values
+			if devicesCopy[i].TCPResult.ResponseTime < 0 || 
+			   math.IsInf(devicesCopy[i].TCPResult.ResponseTime, 0) || 
+			   math.IsNaN(devicesCopy[i].TCPResult.ResponseTime) {
+				devicesCopy[i].TCPResult.ResponseTime = 0
+			}
+		}
 	}
 
 	jsonData, err := json.MarshalIndent(devicesCopy, "", "  ")
