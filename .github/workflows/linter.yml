@@ -23,3 +23,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BRANCH: main
+          VALIDATE_MARKDOWN_PRETTIER: false
+          VALIDATE_GO_RELEASER: false
+          VALIDATE_JSCPD: false
+          VALIDATE_CHECKOV: false
+          VALIDATE_MARKDOWN: false
+
+          VALIDATE_GO: true
+          VALIDATE_GO_MODULES: true
+          VALIDATE_YAML_PRETTIER: true
