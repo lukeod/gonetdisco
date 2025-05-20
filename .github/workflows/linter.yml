@@ -12,23 +12,14 @@ jobs:
   lint:
     name: Run Super-Linter
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Full git history is needed for Super-Linter to correctly identify changed files.
           fetch-depth: 0
 
       - name: Super-Linter
-        uses: super-linter/super-linter@v7.4.0 # Your specified version
+        uses: super-linter/super-linter@v7.4.0
         env:
-          # This token is automatically provided by GitHub.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # SET THIS TO YOUR REPOSITORY'S DEFAULT BRANCH!
-          # (e.g., main, master, develop)
           DEFAULT_BRANCH: main
-          # Optional: To lint all files, not just changed ones, uncomment the next line
-          # RUN_LOCAL: true
-          # Optional: To disable a specific linter, e.g., YAML
-          # VALIDATE_YAML: false
