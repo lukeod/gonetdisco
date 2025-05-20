@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -107,4 +108,10 @@ func CompareDevices(t *testing.T, expected, actual *datamodel.DiscoveredDevice) 
 	if string(expectedJSON) != string(actualJSON) {
 		t.Errorf("Devices differ:\nExpected: %s\nActual: %s", expectedJSON, actualJSON)
 	}
+}
+
+// InitLogging ensures the logger is properly initialized for tests
+// This helps prevent nil pointer dereference errors in tests that use logging
+func InitLogging() {
+	logger.Init(logger.LevelDebug)
 }

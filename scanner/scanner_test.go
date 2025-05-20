@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/testutils"
 )
 
 // TestNewScanner verifies that NewScanner correctly initializes a Scanner instance
 func TestNewScanner(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a sample config
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{
@@ -87,6 +90,9 @@ func TestScanWorker(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping network tests in short mode")
 	}
+	
+	// Initialize the logger before tests
+	testutils.InitLogging()
 
 	// Mock a simple Scanner for testing
 	resultsChan := make(chan datamodel.DiscoveredDevice, 10)
@@ -126,20 +132,18 @@ func TestScanWorker(t *testing.T) {
 		},
 	}
 
+	// Add the worker to the scanner's WaitGroup
+	scanner.WaitGroup.Add(1)
+	
 	// Start a worker in a goroutine
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner.scanWorker(0)
-	}()
+	go scanner.scanWorker(0)
 
 	// Send a job
 	jobChan <- job
 	close(jobChan)
 
 	// Wait for the worker to finish
-	wg.Wait()
+	scanner.WaitGroup.Wait()
 
 	// There should be no results since no scan types were enabled
 	select {
@@ -152,6 +156,8 @@ func TestScanWorker(t *testing.T) {
 
 // TestStartScan_WithMockJobs tests that StartScan correctly dispatches jobs
 func TestStartScan_WithMockJobs(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a test config with a single IP address to scan
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{
@@ -252,6 +258,8 @@ func TestStartScan_WithMockJobs(t *testing.T) {
 
 // TestStartScan_WithCIDR tests that StartScan correctly processes CIDR notation
 func TestStartScan_WithCIDR(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a test config with a CIDR range to scan
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{
@@ -367,6 +375,8 @@ func TestStartScan_WithCIDR(t *testing.T) {
 
 // TestStartScan_WithIPRange tests that StartScan correctly processes IP ranges
 func TestStartScan_WithIPRange(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a test config with an IP range to scan
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{
@@ -482,6 +492,8 @@ func TestStartScan_WithIPRange(t *testing.T) {
 
 // TestStartScan_WithInvalidAddress tests error handling for invalid addresses
 func TestStartScan_WithInvalidAddress(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a test config with an invalid address to scan
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{
@@ -562,6 +574,8 @@ func TestStartScan_WithInvalidAddress(t *testing.T) {
 
 // TestStartScan_WithProfileNotFound tests error handling for missing profiles
 func TestStartScan_WithProfileNotFound(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a test config with a reference to a non-existent profile
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{
@@ -642,6 +656,8 @@ func TestStartScan_WithProfileNotFound(t *testing.T) {
 
 // TestStartScan_WithMultipleWorkers tests worker concurrency
 func TestStartScan_WithMultipleWorkers(t *testing.T) {
+	// Initialize the logger before tests
+	testutils.InitLogging()
 	// Create a test config with multiple IP addresses
 	cfg := &datamodel.Config{
 		Targets: []datamodel.TargetConfig{

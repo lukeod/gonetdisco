@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/lukeod/gonetdisco/datamodel"
+	"github.com/lukeod/gonetdisco/testutils"
 )
 
 // Mock Responder interface for testing
@@ -19,6 +20,9 @@ func TestPerformPing(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping ICMP tests in short mode")
 	}
+	
+	// Initialize the logger before running tests
+	testutils.InitLogging()
 
 	// Create a basic profile for testing
 	profile := datamodel.ICMPProfile{
