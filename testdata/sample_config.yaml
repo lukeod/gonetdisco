@@ -1,0 +1,70 @@
+targets:
+  - name: "test-network"
+    addresses:
+      - "192.168.1.0/24"
+      - "10.0.0.1-10.0.0.10"
+      - "172.16.0.1"
+    profile_name: "default-profile"
+
+snmp_configs:
+  - name: "public-v2c"
+    version: "v2c"
+    community: "public"
+    timeout_seconds: 5
+    retries: 2
+  
+  - name: "secure-v3"
+    version: "v3"
+    timeout_seconds: 5
+    retries: 2
+    username: "snmpuser"
+    auth_protocol: "SHA"
+    auth_password: "authpass"
+    priv_protocol: "AES"
+    priv_password: "privpass"
+    security_level: "authPriv"
+
+profiles:
+  - name: "default-profile"
+    icmp:
+      is_enabled: true
+      timeout_seconds: 2
+      retries: 3
+      packet_size_bytes: 64
+      privileged: false
+      skip_if_unreachable: true
+    
+    snmp:
+      is_enabled: true
+      config_names_ordered:
+        - "public-v2c"
+        - "secure-v3"
+      oids_to_query:
+        - "1.3.6.1.2.1.1.1.0"  # sysDescr
+        - "1.3.6.1.2.1.1.2.0"  # sysObjectID
+        - "1.3.6.1.2.1.1.5.0"  # sysName
+    
+    dns:
+      is_enabled: true
+      do_reverse_lookup: true
+      do_forward_lookup_if_reverse_found: true
+      timeout_seconds: 2
+      dns_servers:
+        - "8.8.8.8:53"
+        - "1.1.1.1:53"
+    
+    tcp:
+      is_enabled: true
+      timeout_seconds: 2
+      ports:
+        - 22
+        - 80
+        - 443
+
+global_scan_settings:
+  concurrent_scanners: 10
+  default_output_path: "./discovered_devices.json"
+  max_oids_per_snmp_request: 60
+  default_dns_servers:
+    - "8.8.8.8:53"
+    - "1.1.1.1:53"

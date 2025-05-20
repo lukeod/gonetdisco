@@ -19,12 +19,36 @@ GoNetDisco is a high-performance network discovery and inventory tool written in
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/gonetdisco.git
+git clone https://github.com/lukeod/gonetdisco.git
 cd gonetdisco
 
 # Build the binary
 go build -o gonetdisco
 ```
+
+## Running Tests
+
+GoNetDisco comes with a comprehensive test suite covering all major components. To run the tests:
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with verbose output
+go test -v ./...
+
+# Run only short tests (skips tests requiring network connectivity)
+go test -short ./...
+
+# View test coverage
+go test -cover ./...
+
+# Generate detailed HTML coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+Note that some tests require real network connectivity to function properly, such as ICMP ping tests, DNS lookups, and TCP port scans. Use the `-short` flag to skip these tests in CI environments or when you don't have the necessary network connectivity.
 
 ## Quick Start
 
