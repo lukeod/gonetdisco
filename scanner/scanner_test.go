@@ -581,9 +581,9 @@ func TestPerformDNSLookup(t *testing.T) {
 		IPAddress: "127.0.0.1", // Localhost should at least resolve
 		Profile: datamodel.ProfileConfig{
 			DNS: datamodel.DNSProfile{
-				IsEnabled:      true,
+				IsEnabled:       true,
 				DoReverseLookup: true,
-				DNSServers:     []string{}, // Use default DNS servers
+				DNSServers:      []string{}, // Use default DNS servers
 			},
 		},
 	}
@@ -657,7 +657,7 @@ func TestPerformTCPScan(t *testing.T) {
 	log := logger.WithModule("test-scanner")
 	scanner.performTCPScan(job, device, log)
 
-	// We can't predict which ports will be open, 
+	// We can't predict which ports will be open,
 	// but verify that the result contains expected data
 	if device.TCPResult == nil {
 		t.Error("Expected TCPResult to be set")
@@ -681,7 +681,7 @@ func TestPerformTCPScan(t *testing.T) {
 	// This is something that could be improved in the code
 	disabledJob.Profile.TCP.Ports = []int{} // Empty port list should cause no scan
 	scanner.performTCPScan(disabledJob, device, log)
-	
+
 	// TCP scan should complete but not show any open ports
 	if device.TCPResult == nil {
 		t.Error("Expected TCPResult to be set even with disabled TCP")

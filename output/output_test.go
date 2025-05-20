@@ -14,7 +14,7 @@ import (
 func TestNewOutputManager(t *testing.T) {
 	// Initialize logging
 	testutils.InitLogging()
-	
+
 	// Create a test results channel
 	resultsChan := make(chan datamodel.DiscoveredDevice)
 	outputPath := "test_output.json"
@@ -51,7 +51,7 @@ func TestNewOutputManager(t *testing.T) {
 func TestRenderProgressBar(t *testing.T) {
 	// Initialize logging
 	testutils.InitLogging()
-	
+
 	// Create a test output manager
 	om := &OutputManager{}
 
@@ -70,7 +70,7 @@ func TestRenderProgressBar(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("percentage_"+string(rune(int(tc.percentage))), func(t *testing.T) {
 			bar := om.renderProgressBar(tc.percentage)
-			
+
 			// Count = characters
 			eqCount := 0
 			for _, c := range bar {
@@ -78,11 +78,11 @@ func TestRenderProgressBar(t *testing.T) {
 					eqCount++
 				}
 			}
-			
+
 			if eqCount != tc.expected {
 				t.Errorf("For %.2f%%, expected %d = characters, got %d", tc.percentage, tc.expected, eqCount)
 			}
-			
+
 			// Check total length
 			if len(bar) != 50 {
 				t.Errorf("Expected bar length of 50, got %d", len(bar))
@@ -95,7 +95,7 @@ func TestRenderProgressBar(t *testing.T) {
 func TestTruncateString(t *testing.T) {
 	// Initialize logging
 	testutils.InitLogging()
-	
+
 	// Create a test output manager
 	om := &OutputManager{}
 
@@ -127,7 +127,7 @@ func TestTruncateString(t *testing.T) {
 func TestWriteJSONOutput(t *testing.T) {
 	// Initialize logging
 	testutils.InitLogging()
-	
+
 	// Create a temporary file for testing
 	tmpfile, err := os.CreateTemp("", "test_output_*.json")
 	if err != nil {
@@ -197,7 +197,7 @@ func TestWriteJSONOutput(t *testing.T) {
 func TestWriteJSONOutput_EmptyDevices(t *testing.T) {
 	// Initialize logging
 	testutils.InitLogging()
-	
+
 	// Create a temporary file for testing
 	tmpfile, err := os.CreateTemp("", "test_output_empty_*.json")
 	if err != nil {

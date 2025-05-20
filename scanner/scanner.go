@@ -195,7 +195,7 @@ func (s *Scanner) performICMPScan(job datamodel.ScanJob, discoveredDevice *datam
 		log.Error("ICMP scan failed", "ip", job.IPAddress, "error", err)
 		discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
 	}
-	
+
 	if icmpRes != nil {
 		log.Debug("ICMP scan complete",
 			"ip", job.IPAddress,
@@ -205,7 +205,7 @@ func (s *Scanner) performICMPScan(job datamodel.ScanJob, discoveredDevice *datam
 		discoveredDevice.ICMPResult = icmpRes
 		return icmpRes.IsReachable
 	}
-	
+
 	return false
 }
 
@@ -226,12 +226,12 @@ func (s *Scanner) performSNMPScan(job datamodel.ScanJob, discoveredDevice *datam
 
 		log.Debug("Trying SNMP config", "ip", job.IPAddress, "config", snmpConfName)
 		snmpRes, err := snmp.PerformQuery(
-			job.IPAddress, 
-			snmpConf, 
-			job.Profile.SNMP.OIDsToQuery, 
+			job.IPAddress,
+			snmpConf,
+			job.Profile.SNMP.OIDsToQuery,
 			s.Config.GlobalScanSettings.MaxOidsPerSNMPRequest,
 		)
-		
+
 		if err != nil {
 			errMsg := fmt.Sprintf("SNMP query with '%s' failed: %v", snmpConfName, err)
 			log.Error("SNMP query failed", "ip", job.IPAddress, "config", snmpConfName, "error", err)
@@ -250,7 +250,7 @@ func (s *Scanner) performSNMPScan(job datamodel.ScanJob, discoveredDevice *datam
 			responded = true                      // Device responded but may not have provided useful data
 		}
 	}
-	
+
 	return responded
 }
 
@@ -273,23 +273,23 @@ func (s *Scanner) performDNSLookup(job datamodel.ScanJob, discoveredDevice *data
 			discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
 		}
 	}
-	
+
 	if dnsRes != nil {
 		// Check if any actual data was found
 		hasRecords := (job.Profile.DNS.DoReverseLookup && len(dnsRes.PTRRecords) > 0) ||
 			(job.Profile.DNS.DoForwardLookupIfReverseFound && len(dnsRes.ForwardLookupResults) > 0)
-			
+
 		if hasRecords {
 			log.Debug("DNS lookups found records",
 				"ip", job.IPAddress,
 				"ptr_count", len(dnsRes.PTRRecords),
 				"forward_count", len(dnsRes.ForwardLookupResults))
 		}
-		
+
 		discoveredDevice.DNSResult = dnsRes
 		return hasRecords
 	}
-	
+
 	return false
 }
 
@@ -326,6 +326,6 @@ func (s *Scanner) performTCPScan(job datamodel.ScanJob, discoveredDevice *datamo
 		discoveredDevice.TCPResult = tcpRes
 		return tcpRes.Reachable
 	}
-	
+
 	return false
 }

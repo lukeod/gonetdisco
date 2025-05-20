@@ -209,7 +209,7 @@ func TestConfigureV3SecurityLevel(t *testing.T) {
 	// Initialize the logger
 	testutils.InitLogging()
 	log := logger.WithModule("snmp-test")
-	
+
 	// Test cases for different security levels
 	testCases := []struct {
 		name           string
@@ -259,14 +259,14 @@ func TestConfigureV3SecurityLevel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			params := &g.GoSNMP{}
 			result, err := configureV3SecurityLevel(params, tc.securityLevel, "192.168.1.1", log)
-			
+
 			// Check error condition
 			if tc.expectError && err == nil {
 				t.Errorf("Expected error for security level %s, got nil", tc.securityLevel)
 			} else if !tc.expectError && err != nil {
 				t.Errorf("Unexpected error for security level %s: %v", tc.securityLevel, err)
 			}
-			
+
 			// Check result string if no error expected
 			if !tc.expectError {
 				if result != tc.expectedResult {

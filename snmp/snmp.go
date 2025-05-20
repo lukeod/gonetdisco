@@ -370,7 +370,7 @@ func configureV3(params *g.GoSNMP, snmpConfig datamodel.SNMPConfig, ipAddress st
 // configureV3SecurityLevel configures the security level for SNMPv3
 func configureV3SecurityLevel(params *g.GoSNMP, configSecLevel, ipAddress string, log *slog.Logger) (string, error) {
 	secLevel := strings.ToLower(configSecLevel)
-	
+
 	// Map security level string to gosnmp.SnmpV3MsgFlags with fallback
 	switch secLevel {
 	case "noauthnopriv":
@@ -435,7 +435,7 @@ func configureV3Authentication(usmParams *g.UsmSecurityParameters, snmpConfig da
 		"ip", ipAddress,
 		"auth_protocol", authProto,
 		"auth_password", "******")
-	
+
 	return nil
 }
 
@@ -471,6 +471,6 @@ func configureV3Privacy(usmParams *g.UsmSecurityParameters, snmpConfig datamodel
 		"ip", ipAddress,
 		"priv_protocol", privProto,
 		"priv_password", "******")
-	
+
 	return nil
 }
