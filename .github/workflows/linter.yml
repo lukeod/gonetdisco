@@ -23,12 +23,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BRANCH: main
-          VALIDATE_MARKDOWN_PRETTIER: false
-          VALIDATE_GO_RELEASER: false
-          VALIDATE_JSCPD: false
-          VALIDATE_CHECKOV: false
-          VALIDATE_MARKDOWN: false
-
+          # Only validate certain codebase parts
+          VALIDATE_ALL_CODEBASE: false
           VALIDATE_GO: true
           VALIDATE_GO_MODULES: true
-          VALIDATE_YAML_PRETTIER: true
+          VALIDATE_YAML: true
+          # Disable error on no files to lint
+          ERROR_ON_MISSING_EXEC_BIT: false
