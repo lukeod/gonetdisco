@@ -1,5 +1,12 @@
 # GoNetDisco - Network Discovery Tool
 
+[![Go Tests and Coverage](https://github.com/lukeod/gonetdisco/actions/workflows/test.yml/badge.svg)](https://github.com/lukeod/gonetdisco/actions/workflows/test.yml)
+[![Lint Code Base](https://github.com/lukeod/gonetdisco/actions/workflows/linter.yml/badge.svg)](https://github.com/lukeod/gonetdisco/actions/workflows/linter.yml)
+[![CodeQL Analysis](https://github.com/lukeod/gonetdisco/actions/workflows/codeql.yml/badge.svg)](https://github.com/lukeod/gonetdisco/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/lukeod/gonetdisco/branch/main/graph/badge.svg)](https://codecov.io/gh/lukeod/gonetdisco)
+[![License](https://img.shields.io/github/license/lukeod/gonetdisco)](https://github.com/lukeod/gonetdisco/blob/main/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lukeod/gonetdisco)](https://goreportcard.com/report/github.com/lukeod/gonetdisco)
+
 GoNetDisco is a high-performance network discovery and inventory tool written in Go that combines ICMP, SNMP, and DNS techniques to discover and catalog devices on your network.
 
 ## Features
