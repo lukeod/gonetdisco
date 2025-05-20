@@ -1,0 +1,34 @@
+# .github/workflows/linter.yml
+
+name: Lint Code Base
+
+on:
+  push: # Runs on pushes to specified branches
+    branches: [ main, master, develop ] # Adjust to your project's main branches
+  pull_request: # Runs on pull requests targeting specified branches
+    branches: [ main, master, develop ] # Adjust to your project's main branches
+
+jobs:
+  lint:
+    name: Run Super-Linter
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Full git history is needed for Super-Linter to correctly identify changed files.
+          fetch-depth: 0
+
+      - name: Super-Linter
+        uses: super-linter/super-linter@v7.4.0 # Your specified version
+        env:
+          # This token is automatically provided by GitHub.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SET THIS TO YOUR REPOSITORY'S DEFAULT BRANCH!
+          # (e.g., main, master, develop)
+          DEFAULT_BRANCH: main
+          # Optional: To lint all files, not just changed ones, uncomment the next line
+          # RUN_LOCAL: true
+          # Optional: To disable a specific linter, e.g., YAML
+          # VALIDATE_YAML: false
