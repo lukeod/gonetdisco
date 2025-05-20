@@ -35,7 +35,7 @@ func ScanTCP(ctx context.Context, ip string, config *datamodel.TCPConfig) (*data
 
 			// Create the TCP address to connect to
 			addr := fmt.Sprintf("%s:%d", ip, p)
-			
+
 			// Create a dialer with timeout
 			dialer := net.Dialer{
 				Timeout: time.Duration(config.Timeout) * time.Second,
@@ -45,17 +45,17 @@ func ScanTCP(ctx context.Context, ip string, config *datamodel.TCPConfig) (*data
 			startTime := time.Now()
 			conn, err := dialer.DialContext(ctx, "tcp", addr)
 			scanDuration := time.Since(startTime)
-			
+
 			if err == nil {
 				// Connection successful, port is open
 				service := getServiceName(p) // Get common service name for this port
-				
+
 				mutex.Lock()
 				result.Reachable = true
 				result.OpenPorts[p] = service
 				result.ResponseTime = scanDuration.Seconds()
 				mutex.Unlock()
-				
+
 				logger.Debug(fmt.Sprintf("TCP port %d is open on %s (service: %s)", p, ip, service))
 				conn.Close()
 			} else {

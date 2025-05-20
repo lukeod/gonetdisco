@@ -25,10 +25,10 @@ const (
 var (
 	// Default logger that writes to stderr with human-readable format
 	defaultLogger *slog.Logger
-	
+
 	// Current log level
 	logLevel = LevelInfo
-	
+
 	// Writer for logs
 	logWriter io.Writer = os.Stderr
 )
@@ -36,9 +36,9 @@ var (
 // Init initializes the logging system with the specified level
 func Init(level LogLevel) {
 	logLevel = level
-	
+
 	var logHandler slog.Handler
-	
+
 	// Set the log level in slog
 	var logLevelSlog slog.Level
 	switch logLevel {
@@ -51,21 +51,21 @@ func Init(level LogLevel) {
 	case LevelDebug:
 		logLevelSlog = slog.LevelDebug
 	}
-	
+
 	// Create handler with appropriate options
 	opts := &slog.HandlerOptions{
 		Level: logLevelSlog,
 	}
-	
+
 	// Use text handler for human-readable output
 	logHandler = slog.NewTextHandler(logWriter, opts)
-	
+
 	// Create the default logger
 	defaultLogger = slog.New(logHandler)
-	
+
 	// Set as default slog logger
 	slog.SetDefault(defaultLogger)
-	
+
 	Debug("Logger initialized", "level", logLevel)
 }
 

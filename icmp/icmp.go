@@ -53,40 +53,40 @@ func PerformPing(ipAddress string, profile datamodel.ICMPProfile) (*datamodel.IC
 
 	// Add callbacks to track results
 	pinger.OnRecv = func(pkt *probing.Packet) {
-		log.Debug("Received ping response", 
+		log.Debug("Received ping response",
 			"ip", pkt.IPAddr,
 			"seq", pkt.Seq,
 			"size", pkt.Nbytes,
 			"rtt", pkt.Rtt.String(),
 			"ttl", pkt.TTL)
-		
+
 		// Store the first successful response and stop pinging
 		if !firstResponseReceived {
 			firstResponseReceived = true
-			
+
 			// Create the result with just this packet
 			result = datamodel.ICMPScanResult{
-				IsReachable:     true,
-				PacketsSent:     pkt.Seq, // How many we sent before getting a response
-				PacketsReceived: 1,       // We got exactly one response
+				IsReachable:       true,
+				PacketsSent:       pkt.Seq,                                     // How many we sent before getting a response
+				PacketsReceived:   1,                                           // We got exactly one response
 				PacketLossPercent: float64(pkt.Seq-1) * 100 / float64(pkt.Seq), // Loss % based on packets sent before success
-				RTT_ms:          float64(pkt.Rtt.Nanoseconds()) / 1e6,         // Single RTT value
+				RTT_ms:            float64(pkt.Rtt.Nanoseconds()) / 1e6,        // Single RTT value
 			}
-			
+
 			// Stop pinging after the first successful response
 			log.Debug("Stopping ping after first response", "ip", ipAddress)
 			pinger.Stop()
 		}
 	}
-    
+
 	pinger.OnFinish = func(stats *probing.Statistics) {
-		log.Debug("Ping statistics", 
-			"ip", stats.Addr, 
-			"sent", stats.PacketsSent, 
-			"received", stats.PacketsRecv, 
-			"duplicates", stats.PacketsRecvDuplicates, 
+		log.Debug("Ping statistics",
+			"ip", stats.Addr,
+			"sent", stats.PacketsSent,
+			"received", stats.PacketsRecv,
+			"duplicates", stats.PacketsRecvDuplicates,
 			"loss_percent", stats.PacketLoss)
-		
+
 		// Only update the result if we haven't already received a response
 		// This handles the case where all pings fail
 		if !firstResponseReceived {
@@ -96,7 +96,7 @@ func PerformPing(ipAddress string, profile datamodel.ICMPProfile) (*datamodel.IC
 				PacketsReceived:   stats.PacketsRecv,
 				PacketLossPercent: stats.PacketLoss,
 			}
-			
+
 			// Add RTT data if we have received packets (shouldn't happen with early stop)
 			if stats.PacketsRecv > 0 {
 				result.RTT_ms = float64(stats.MinRtt.Nanoseconds()) / 1e6 // Just use the min RTT

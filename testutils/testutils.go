@@ -15,7 +15,7 @@ import (
 // LoadTestConfig loads test YAML configuration from a file.
 func LoadTestConfig(t *testing.T, fileName string) *datamodel.Config {
 	t.Helper()
-	
+
 	// Read the YAML file
 	yamlFile, err := os.ReadFile(filepath.Join("testdata", fileName))
 	if err != nil {
@@ -35,7 +35,7 @@ func LoadTestConfig(t *testing.T, fileName string) *datamodel.Config {
 // CreateTempConfigFile creates a temporary YAML configuration file from a Config struct.
 func CreateTempConfigFile(t *testing.T, config *datamodel.Config) string {
 	t.Helper()
-	
+
 	// Create a temporary file
 	tmpFile, err := os.CreateTemp("", "gonetdisco-test-*.yaml")
 	if err != nil {
@@ -70,7 +70,7 @@ func CreateTestDevice(ipAddress string) *datamodel.DiscoveredDevice {
 // SaveTestDevicesToJSON saves a slice of DiscoveredDevice to a JSON file.
 func SaveTestDevicesToJSON(t *testing.T, devices []*datamodel.DiscoveredDevice, filePath string) {
 	t.Helper()
-	
+
 	// Create the directory if it doesn't exist
 	dir := filepath.Dir(filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {

@@ -67,7 +67,7 @@ func PerformLookups(ipAddress string, profile datamodel.DNSProfile, dnsServersTo
 			if hostname == "" {
 				continue
 			}
-			
+
 			forwardIps, err := resolver.LookupHost(ctx, hostname)
 			if err != nil {
 				dnsErr := fmt.Errorf("forward lookup for %s (from PTR %s) failed: %w", hostname, ipAddress, err)

@@ -2,9 +2,9 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"net"
-	"bytes"
 	"strings"
 )
 
@@ -27,10 +27,10 @@ func generateIPs(addressOrCIDR string) ([]net.IP, error) {
 		}
 
 		ips := make([]net.IP, 0)
-		
+
 		// Get network and broadcast addresses
 		networkAddr, broadcastAddr := addressRange(ipNet)
-		
+
 		// Get prefix length
 		prefixLen, totalBits := ipNet.Mask.Size()
 		if totalBits != 32 { // Should be caught by To4() check above
@@ -68,7 +68,7 @@ func generateIPs(addressOrCIDR string) ([]net.IP, error) {
 		if len(ips) == 0 && prefixLen < 31 {
 			return nil, fmt.Errorf("no scannable host IPv4 addresses were derived from CIDR '%s'", addressOrCIDR)
 		}
-		
+
 		return ips, nil
 	}
 
@@ -77,39 +77,39 @@ func generateIPs(addressOrCIDR string) ([]net.IP, error) {
 	if len(parts) == 2 {
 		startIP := net.ParseIP(parts[0])
 		endIP := net.ParseIP(parts[1])
-		
+
 		if startIP == nil || endIP == nil {
 			return nil, fmt.Errorf("invalid IP range format '%s': start or end IP is invalid", addressOrCIDR)
 		}
-		
+
 		if startIP.To4() == nil || endIP.To4() == nil {
 			return nil, fmt.Errorf("IP range '%s' must use IPv4 addresses", addressOrCIDR)
 		}
-		
+
 		// Compare IPs to ensure start <= end
 		if bytes.Compare(startIP.To4(), endIP.To4()) > 0 {
 			return nil, fmt.Errorf("invalid IP range '%s': start IP must be <= end IP", addressOrCIDR)
 		}
-		
+
 		ips := make([]net.IP, 0)
 		currentIP := make(net.IP, len(startIP.To4()))
 		copy(currentIP, startIP.To4())
-		
+
 		for {
 			// Add current IP to list
 			ipToAdd := make(net.IP, len(currentIP))
 			copy(ipToAdd, currentIP)
 			ips = append(ips, ipToAdd)
-			
+
 			// Stop if we've reached the end IP
 			if bytes.Equal(currentIP, endIP.To4()) {
 				break
 			}
-			
+
 			// Increment to next IP
 			currentIP = inc(currentIP)
 		}
-		
+
 		return ips, nil
 	}
 
@@ -135,7 +135,7 @@ func addressRange(network *net.IPNet) (net.IP, net.IP) {
 	for i := 0; i < len(firstIP); i++ {
 		lastIP[i] = firstIP[i] | ^network.Mask[i]
 	}
-	
+
 	return firstIP, lastIP
 }
 
@@ -143,7 +143,7 @@ func addressRange(network *net.IPNet) (net.IP, net.IP) {
 func inc(ip net.IP) net.IP {
 	incIP := make([]byte, len(ip))
 	copy(incIP, ip)
-	
+
 	// Start from the end (least significant byte) and increment
 	for j := len(incIP) - 1; j >= 0; j-- {
 		incIP[j]++
@@ -153,7 +153,7 @@ func inc(ip net.IP) net.IP {
 		}
 		// If we did wrap around, continue to the next byte
 	}
-	
+
 	return incIP
 }
 

@@ -58,7 +58,7 @@ func setDefaults(cfg *datamodel.Config) {
 			// Default to true - skip additional tasks if IP doesn't respond to ping
 			cfg.Profiles[i].ICMP.SkipIfUnreachable = true
 		}
-		
+
 		// Set default timeout for TCP scanning if not specified
 		if cfg.Profiles[i].TCP.IsEnabled && cfg.Profiles[i].TCP.TimeoutSeconds == 0 {
 			cfg.Profiles[i].TCP.TimeoutSeconds = 2 // Default to 2 seconds
@@ -77,55 +77,113 @@ func validateConfig(cfg *datamodel.Config) error {
 	}
 
 	// Build maps for quick lookup and duplicate checking
-	profileNames := make(map[string]bool)
-	for _, p := range cfg.Profiles {
-		if _, exists := profileNames[p.Name]; exists {
-			return fmt.Errorf("duplicate profile name found: %s", p.Name)
-		}
-		profileNames[p.Name] = true
-		
-		// Initialize TCP profile if not set
-		if p.TCP.IsEnabled && len(p.TCP.Ports) == 0 {
-			return fmt.Errorf("TCP profile for '%s' is enabled but has no ports specified", p.Name)
-		}
+	profileNames, err := validateProfiles(cfg.Profiles)
+	if err != nil {
+		return err
 	}
 
+	snmpConfigNames, err := validateSNMPConfigs(cfg.SNMPConfigs)
+	if err != nil {
+		return err
+	}
+
+	err = validateTargets(cfg.Targets, profileNames)
+	if err != nil {
+		return err
+	}
+
+	// Validate profile references and details
+	err = validateProfileDetails(cfg.Profiles, snmpConfigNames)
+	if err != nil {
+		return err
+	}
+
+	// Validate GlobalScanSettings DNS servers if provided
+	err = validateGlobalDNSServers(cfg.GlobalScanSettings.DefaultDNSServers)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateProfiles validates the profile configurations and returns a map of valid profile names
+func validateProfiles(profiles []datamodel.ProfileConfig) (map[string]bool, error) {
+	profileNames := make(map[string]bool)
+	for _, p := range profiles {
+		if _, exists := profileNames[p.Name]; exists {
+			return nil, fmt.Errorf("duplicate profile name found: %s", p.Name)
+		}
+		profileNames[p.Name] = true
+
+		// Check TCP profile if enabled
+		if p.TCP.IsEnabled && len(p.TCP.Ports) == 0 {
+			return nil, fmt.Errorf("TCP profile for '%s' is enabled but has no ports specified", p.Name)
+		}
+	}
+	return profileNames, nil
+}
+
+// validateSNMPConfigs validates SNMP configurations and returns a map of valid SNMP config names
+func validateSNMPConfigs(snmpConfigs []datamodel.SNMPConfig) (map[string]bool, error) {
 	snmpConfigNames := make(map[string]bool)
-	for _, sc := range cfg.SNMPConfigs {
+	for _, sc := range snmpConfigs {
 		if _, exists := snmpConfigNames[sc.Name]; exists {
-			return fmt.Errorf("duplicate SNMP config name found: %s", sc.Name)
+			return nil, fmt.Errorf("duplicate SNMP config name found: %s", sc.Name)
 		}
 		snmpConfigNames[sc.Name] = true
 
-		// Validate SNMP version
-		validVersions := map[string]bool{"v1": true, "v2c": true, "v3": true}
-		if !validVersions[sc.Version] {
-			return fmt.Errorf("invalid SNMP version '%s' for SNMP config '%s'", sc.Version, sc.Name)
+		if err := validateSNMPVersion(sc); err != nil {
+			return nil, err
 		}
+	}
+	return snmpConfigNames, nil
+}
 
-		// Further SNMPv3 validation
-		if sc.Version == "v3" {
-			if sc.SecurityLevel == "" {
-				return fmt.Errorf("SNMPv3 config '%s' missing security_level", sc.Name)
-			}
-			if sc.Username == "" {
-				return fmt.Errorf("SNMPv3 config '%s' missing username", sc.Name)
-			}
-			if sc.SecurityLevel == "authNoPriv" || sc.SecurityLevel == "authPriv" {
-				if sc.AuthProtocol == "" || sc.AuthPassword == "" {
-					return fmt.Errorf("SNMPv3 config '%s' with security '%s' requires auth_protocol and auth_password", sc.Name, sc.SecurityLevel)
-				}
-			}
-			if sc.SecurityLevel == "authPriv" {
-				if sc.PrivProtocol == "" || sc.PrivPassword == "" {
-					return fmt.Errorf("SNMPv3 config '%s' with security 'authPriv' requires priv_protocol and priv_password", sc.Name)
-				}
-			}
+// validateSNMPVersion validates the SNMP version and required fields
+func validateSNMPVersion(sc datamodel.SNMPConfig) error {
+	// Validate SNMP version
+	validVersions := map[string]bool{"v1": true, "v2c": true, "v3": true}
+	if !validVersions[sc.Version] {
+		return fmt.Errorf("invalid SNMP version '%s' for SNMP config '%s'", sc.Version, sc.Name)
+	}
+
+	// Further SNMPv3 validation
+	if sc.Version == "v3" {
+		return validateSNMPv3Config(sc)
+	}
+	return nil
+}
+
+// validateSNMPv3Config validates the SNMPv3 specific configuration
+func validateSNMPv3Config(sc datamodel.SNMPConfig) error {
+	if sc.SecurityLevel == "" {
+		return fmt.Errorf("SNMPv3 config '%s' missing security_level", sc.Name)
+	}
+	if sc.Username == "" {
+		return fmt.Errorf("SNMPv3 config '%s' missing username", sc.Name)
+	}
+
+	if sc.SecurityLevel == "authNoPriv" || sc.SecurityLevel == "authPriv" {
+		if sc.AuthProtocol == "" || sc.AuthPassword == "" {
+			return fmt.Errorf("SNMPv3 config '%s' with security '%s' requires auth_protocol and auth_password",
+				sc.Name, sc.SecurityLevel)
 		}
 	}
 
+	if sc.SecurityLevel == "authPriv" {
+		if sc.PrivProtocol == "" || sc.PrivPassword == "" {
+			return fmt.Errorf("SNMPv3 config '%s' with security 'authPriv' requires priv_protocol and priv_password", sc.Name)
+		}
+	}
+
+	return nil
+}
+
+// validateTargets validates the target configurations
+func validateTargets(targets []datamodel.TargetConfig, profileNames map[string]bool) error {
 	targetNames := make(map[string]bool)
-	for _, t := range cfg.Targets {
+	for _, t := range targets {
 		if _, exists := targetNames[t.Name]; exists {
 			return fmt.Errorf("duplicate target name found: %s", t.Name)
 		}
@@ -140,77 +198,123 @@ func validateConfig(cfg *datamodel.Config) error {
 		if len(t.Addresses) == 0 {
 			return fmt.Errorf("target '%s' has no addresses defined", t.Name)
 		}
+
 		for _, addr := range t.Addresses {
 			if addr == "" {
 				return fmt.Errorf("target '%s' has an empty address string", t.Name)
 			}
 		}
 	}
+	return nil
+}
 
-	// Validate profiles
-	for _, p := range cfg.Profiles {
-		if p.ICMP.IsEnabled {
-			if p.ICMP.TimeoutSeconds <= 0 {
-				return fmt.Errorf("ICMP profile for '%s' has invalid timeout: %d", p.Name, p.ICMP.TimeoutSeconds)
-			}
-			if p.ICMP.Retries < 0 {
-				return fmt.Errorf("ICMP profile for '%s' has invalid retries: %d", p.Name, p.ICMP.Retries)
-			}
+// validateProfileDetails validates the detailed settings of each profile
+func validateProfileDetails(profiles []datamodel.ProfileConfig, snmpConfigNames map[string]bool) error {
+	for _, p := range profiles {
+		if err := validateICMPSettings(p); err != nil {
+			return err
 		}
-		
-		if p.SNMP.IsEnabled {
-			if len(p.SNMP.ConfigNamesOrdered) == 0 {
-				return fmt.Errorf("SNMP profile for '%s' is enabled but has no config_names_ordered", p.Name)
-			}
-			for _, snmpConfName := range p.SNMP.ConfigNamesOrdered {
-				if !snmpConfigNames[snmpConfName] {
-					return fmt.Errorf("SNMP profile for '%s' references non-existent SNMP config '%s'", p.Name, snmpConfName)
-				}
-			}
+
+		if err := validateSNMPSettings(p, snmpConfigNames); err != nil {
+			return err
 		}
-		
-		if p.DNS.IsEnabled {
-			if p.DNS.TimeoutSeconds <= 0 {
-				return fmt.Errorf("DNS profile for '%s' has invalid timeout: %d", p.Name, p.DNS.TimeoutSeconds)
-			}
-			for _, server := range p.DNS.DNSServers {
-				if server == "" {
-					return fmt.Errorf("DNS profile for '%s' has an invalid DNS server entry: '%s'", p.Name, server)
-				}
-				
-				// Basic validation for DNS server format
-				if !strings.Contains(server, ":") {
-					return fmt.Errorf("DNS server '%s' in profile '%s' must include port (e.g., '8.8.8.8:53')", server, p.Name)
-				}
-			}
+
+		if err := validateDNSSettings(p); err != nil {
+			return err
 		}
-		
-		if p.TCP.IsEnabled {
-			if p.TCP.TimeoutSeconds <= 0 {
-				return fmt.Errorf("TCP profile for '%s' has invalid timeout: %d", p.Name, p.TCP.TimeoutSeconds)
-			}
-			if len(p.TCP.Ports) == 0 {
-				return fmt.Errorf("TCP profile for '%s' is enabled but has no ports specified", p.Name)
-			}
-			for _, port := range p.TCP.Ports {
-				if port <= 0 || port > 65535 {
-					return fmt.Errorf("TCP profile for '%s' has invalid port number: %d", p.Name, port)
-				}
+
+		if err := validateTCPSettings(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateICMPSettings validates the ICMP settings of a profile
+func validateICMPSettings(p datamodel.ProfileConfig) error {
+	if p.ICMP.IsEnabled {
+		if p.ICMP.TimeoutSeconds <= 0 {
+			return fmt.Errorf("ICMP profile for '%s' has invalid timeout: %d", p.Name, p.ICMP.TimeoutSeconds)
+		}
+		if p.ICMP.Retries < 0 {
+			return fmt.Errorf("ICMP profile for '%s' has invalid retries: %d", p.Name, p.ICMP.Retries)
+		}
+	}
+	return nil
+}
+
+// validateSNMPSettings validates the SNMP settings of a profile
+func validateSNMPSettings(p datamodel.ProfileConfig, snmpConfigNames map[string]bool) error {
+	if p.SNMP.IsEnabled {
+		if len(p.SNMP.ConfigNamesOrdered) == 0 {
+			return fmt.Errorf("SNMP profile for '%s' is enabled but has no config_names_ordered", p.Name)
+		}
+		for _, snmpConfName := range p.SNMP.ConfigNamesOrdered {
+			if !snmpConfigNames[snmpConfName] {
+				return fmt.Errorf("SNMP profile for '%s' references non-existent SNMP config '%s'", p.Name, snmpConfName)
 			}
 		}
 	}
-	
-	// Validate GlobalScanSettings DNS servers if provided
-	for _, server := range cfg.GlobalScanSettings.DefaultDNSServers {
+	return nil
+}
+
+// validateDNSSettings validates the DNS settings of a profile
+func validateDNSSettings(p datamodel.ProfileConfig) error {
+	if p.DNS.IsEnabled {
+		if p.DNS.TimeoutSeconds <= 0 {
+			return fmt.Errorf("DNS profile for '%s' has invalid timeout: %d", p.Name, p.DNS.TimeoutSeconds)
+		}
+		for _, server := range p.DNS.DNSServers {
+			if err := validateDNSServer(server, p.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// validateTCPSettings validates the TCP settings of a profile
+func validateTCPSettings(p datamodel.ProfileConfig) error {
+	if p.TCP.IsEnabled {
+		if p.TCP.TimeoutSeconds <= 0 {
+			return fmt.Errorf("TCP profile for '%s' has invalid timeout: %d", p.Name, p.TCP.TimeoutSeconds)
+		}
+		if len(p.TCP.Ports) == 0 {
+			return fmt.Errorf("TCP profile for '%s' is enabled but has no ports specified", p.Name)
+		}
+		for _, port := range p.TCP.Ports {
+			if port <= 0 || port > 65535 {
+				return fmt.Errorf("TCP profile for '%s' has invalid port number: %d", p.Name, port)
+			}
+		}
+	}
+	return nil
+}
+
+// validateDNSServer validates a single DNS server string
+func validateDNSServer(server, profileName string) error {
+	if server == "" {
+		return fmt.Errorf("DNS profile for '%s' has an invalid DNS server entry: '%s'", profileName, server)
+	}
+
+	// Basic validation for DNS server format
+	if !strings.Contains(server, ":") {
+		return fmt.Errorf("DNS server '%s' in profile '%s' must include port (e.g., '8.8.8.8:53')", server, profileName)
+	}
+	return nil
+}
+
+// validateGlobalDNSServers validates the global DNS server settings
+func validateGlobalDNSServers(servers []string) error {
+	for _, server := range servers {
 		if server == "" {
 			return fmt.Errorf("global_scan_settings has an invalid default DNS server entry")
 		}
-		
+
 		// Basic validation for DNS server format
 		if !strings.Contains(server, ":") {
 			return fmt.Errorf("DNS server '%s' in global_scan_settings must include port (e.g., '8.8.8.8:53')", server)
 		}
 	}
-	
 	return nil
 }

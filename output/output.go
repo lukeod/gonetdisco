@@ -16,21 +16,21 @@ import (
 type OutputManager struct {
 	ResultsChannel       <-chan datamodel.DiscoveredDevice // Receives results from scanner
 	ConfiguredOutputPath string                            // Path for the JSON output file
-	AllDiscoveredDevices []datamodel.DiscoveredDevice     // Stores all devices for final JSON output
+	AllDiscoveredDevices []datamodel.DiscoveredDevice      // Stores all devices for final JSON output
 	Mutex                sync.Mutex                        // To protect AllDiscoveredDevices and stats
 
 	// Terminal UI related fields
-	TotalIPsToScan      int // Needs to be estimated or passed by the scanner
-	ScannedIPsCount     int
+	TotalIPsToScan       int // Needs to be estimated or passed by the scanner
+	ScannedIPsCount      int
 	DiscoveredHostsCount int
-	LastNDevices        []datamodel.DiscoveredDevice // For displaying last N discovered devices
-	MaxLastNDevices     int                         // Configurable N, e.g., 5 or 10
-	StartTime           time.Time
-	UIUpdateInterval    time.Duration
+	LastNDevices         []datamodel.DiscoveredDevice // For displaying last N discovered devices
+	MaxLastNDevices      int                          // Configurable N, e.g., 5 or 10
+	StartTime            time.Time
+	UIUpdateInterval     time.Duration
 
 	// Control channel for stopping the UI updater goroutine
-	doneChan     chan struct{}
-	uiWaitGroup  sync.WaitGroup
+	doneChan    chan struct{}
+	uiWaitGroup sync.WaitGroup
 }
 
 // NewOutputManager creates a new OutputManager instance.
@@ -67,7 +67,7 @@ func (om *OutputManager) Start() {
 	}
 
 	// All results processed
-	close(om.doneChan) // Signal UI updater to stop
+	close(om.doneChan)    // Signal UI updater to stop
 	om.uiWaitGroup.Wait() // Wait for UI to clean up
 
 	om.WriteJSONOutput()

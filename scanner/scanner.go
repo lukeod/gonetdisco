@@ -4,6 +4,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -21,9 +22,9 @@ type Scanner struct {
 	ResultsChannel chan datamodel.DiscoveredDevice // Channel to send results to output module
 	JobChannel     chan datamodel.ScanJob          // Channel for distributing scan jobs to workers
 	WaitGroup      sync.WaitGroup                  // To wait for all workers to finish
-	
+
 	// Pre-processed maps for efficiency
-	ProfilesMap   map[string]datamodel.ProfileConfig
+	ProfilesMap    map[string]datamodel.ProfileConfig
 	SNMPConfigsMap map[string]datamodel.SNMPConfig
 }
 
@@ -42,7 +43,7 @@ func NewScanner(cfg *datamodel.Config, resultsChan chan datamodel.DiscoveredDevi
 
 	// Create a buffer for job channel based on concurrent scanners
 	jobBufferSize := cfg.GlobalScanSettings.ConcurrentScanners * 2
-	
+
 	return &Scanner{
 		Config:         cfg,
 		ResultsChannel: resultsChan,
@@ -56,7 +57,7 @@ func NewScanner(cfg *datamodel.Config, resultsChan chan datamodel.DiscoveredDevi
 func (s *Scanner) StartScan() {
 	// Module-specific logger
 	log := logger.WithModule("scanner")
-	
+
 	// Launch worker goroutines
 	for i := 0; i < s.Config.GlobalScanSettings.ConcurrentScanners; i++ {
 		s.WaitGroup.Add(1)
@@ -92,7 +93,7 @@ func (s *Scanner) StartScan() {
 			}
 
 			log.Debug("Generated IPs for scanning", "address", addressOrCIDR, "count", len(ips))
-			
+
 			// Create a scan job for each IP
 			for _, ip := range ips {
 				job := datamodel.ScanJob{
@@ -108,20 +109,20 @@ func (s *Scanner) StartScan() {
 
 	// Close the job channel after all jobs are dispatched
 	close(s.JobChannel)
-	
+
 	// Wait for all workers to finish
 	s.WaitGroup.Wait()
-	
+
 	// Close the results channel to signal the output module
 	close(s.ResultsChannel)
-	
+
 	log.Info("Scan completed")
 }
 
 // scanWorker processes scan jobs.
 func (s *Scanner) scanWorker(workerID int) {
 	defer s.WaitGroup.Done()
-	
+
 	// Worker-specific logger
 	log := logger.WithModule("scanner.worker").With("worker_id", workerID)
 
@@ -135,141 +136,38 @@ func (s *Scanner) scanWorker(workerID int) {
 			Errors:      make([]string, 0),
 		}
 		var responded bool = false
-		
+
 		log.Debug("Processing host", "ip", job.IPAddress, "target", job.TargetConfig.Name)
 
 		// 1. ICMP Scan
-		if job.Profile.ICMP.IsEnabled {
-			log.Debug("Performing ICMP scan", "ip", job.IPAddress)
-			icmpRes, err := icmp.PerformPing(job.IPAddress, job.Profile.ICMP)
-			if err != nil {
-				errMsg := fmt.Sprintf("ICMP error: %v", err)
-				log.Error("ICMP scan failed", "ip", job.IPAddress, "error", err)
-				discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
-			}
-			if icmpRes != nil {
-				log.Debug("ICMP scan complete", 
-					"ip", job.IPAddress, 
-					"reachable", icmpRes.IsReachable, 
-					"sent", icmpRes.PacketsSent, 
-					"received", icmpRes.PacketsReceived)
-				discoveredDevice.ICMPResult = icmpRes
-				if icmpRes.IsReachable {
-					responded = true
-				}
-			}
-		}
+		icmpResponse := s.performICMPScan(job, &discoveredDevice, log)
+		responded = responded || icmpResponse
 
 		// Determine if we should skip remaining scans based on ICMP results
-		shouldSkipRemaining := job.Profile.ICMP.IsEnabled && 
-							  job.Profile.ICMP.SkipIfUnreachable && 
-							  discoveredDevice.ICMPResult != nil && 
-							  !discoveredDevice.ICMPResult.IsReachable
-							  
+		shouldSkipRemaining := job.Profile.ICMP.IsEnabled &&
+			job.Profile.ICMP.SkipIfUnreachable &&
+			discoveredDevice.ICMPResult != nil &&
+			!discoveredDevice.ICMPResult.IsReachable
+
 		if shouldSkipRemaining {
 			log.Debug("Skipping further scans due to ICMP unreachability", "ip", job.IPAddress)
-		}
-
-		// 2. SNMP Scan
-		if job.Profile.SNMP.IsEnabled && !shouldSkipRemaining {
-			log.Debug("Performing SNMP scan", "ip", job.IPAddress)
-			
-			for _, snmpConfName := range job.Profile.SNMP.ConfigNamesOrdered {
-				snmpConf, ok := job.SNMPConfigs[snmpConfName]
-				if !ok {
-					errMsg := fmt.Sprintf("SNMP config '%s' not found in job context", snmpConfName)
-					log.Error("SNMP config missing", "ip", job.IPAddress, "config", snmpConfName)
-					discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
-					continue
-				}
-
-				log.Debug("Trying SNMP config", "ip", job.IPAddress, "config", snmpConfName)
-				snmpRes, err := snmp.PerformQuery(job.IPAddress, snmpConf, job.Profile.SNMP.OIDsToQuery, s.Config.GlobalScanSettings.MaxOidsPerSNMPRequest)
-				if err != nil {
-					errMsg := fmt.Sprintf("SNMP query with '%s' failed: %v", snmpConfName, err)
-					log.Error("SNMP query failed", "ip", job.IPAddress, "config", snmpConfName, "error", err)
-					discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
-					continue
-				}
-
-				if snmpRes != nil && snmpRes.SuccessfullyQueried {
-					log.Debug("SNMP query successful", "ip", job.IPAddress, "config", snmpConfName, "oids_count", len(snmpRes.QueriedData))
-					discoveredDevice.SNMPResult = snmpRes
-					responded = true // Device responded to SNMP
-					break // Successfully queried with this config
-				} else if snmpRes != nil {
-					log.Debug("SNMP query partial results", "ip", job.IPAddress, "config", snmpConfName)
-					discoveredDevice.SNMPResult = snmpRes // Store partial results
-					responded = true // Device responded but may not have provided useful data
-				}
-			}
-		}
-
-		// 3. DNS Lookup
-		if job.Profile.DNS.IsEnabled && !shouldSkipRemaining {
-			log.Debug("Performing DNS lookups", "ip", job.IPAddress)
-			
-			// Determine DNS servers to use
-			dnsServersToUse := job.Profile.DNS.DNSServers
-			if len(dnsServersToUse) == 0 {
-				dnsServersToUse = s.Config.GlobalScanSettings.DefaultDNSServers
+		} else {
+			// 2. SNMP Scan
+			if job.Profile.SNMP.IsEnabled {
+				snmpResponse := s.performSNMPScan(job, &discoveredDevice, log)
+				responded = responded || snmpResponse
 			}
 
-			dnsRes, errs := dns.PerformLookups(job.IPAddress, job.Profile.DNS, dnsServersToUse)
-			if len(errs) > 0 {
-				for _, e := range errs {
-					errMsg := fmt.Sprintf("DNS error: %v", e)
-					log.Error("DNS lookup error", "ip", job.IPAddress, "error", e)
-					discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
-				}
+			// 3. DNS Lookup
+			if job.Profile.DNS.IsEnabled {
+				dnsResponse := s.performDNSLookup(job, &discoveredDevice, log)
+				responded = responded || dnsResponse
 			}
-			if dnsRes != nil {
-				// Check if any actual data was found
-				if (job.Profile.DNS.DoReverseLookup && len(dnsRes.PTRRecords) > 0) ||
-				   (job.Profile.DNS.DoForwardLookupIfReverseFound && len(dnsRes.ForwardLookupResults) > 0) {
-					log.Debug("DNS lookups found records", 
-						"ip", job.IPAddress, 
-						"ptr_count", len(dnsRes.PTRRecords), 
-						"forward_count", len(dnsRes.ForwardLookupResults))
-					responded = true
-				}
-				discoveredDevice.DNSResult = dnsRes
-			}
-		}
-		
-		// 4. TCP Port Scan
-		if job.Profile.TCP.IsEnabled && !shouldSkipRemaining {
-			log.Debug("Performing TCP port scan", "ip", job.IPAddress)
-			
-			// Create a context with timeout for the TCP scan
-			ctx, cancel := context.WithTimeout(
-				context.Background(), 
-				time.Duration(job.Profile.TCP.TimeoutSeconds+5)*time.Second,
-			)
-			defer cancel()
-			
-			tcpConfig := &datamodel.TCPConfig{
-				Enabled: job.Profile.TCP.IsEnabled,
-				Timeout: job.Profile.TCP.TimeoutSeconds,
-				Ports:   job.Profile.TCP.Ports,
-			}
-			
-			tcpRes, err := tcp.ScanTCP(ctx, job.IPAddress, tcpConfig)
-			if err != nil {
-				errMsg := fmt.Sprintf("TCP scan error: %v", err)
-				log.Error("TCP scan failed", "ip", job.IPAddress, "error", err)
-				discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
-			}
-			
-			if tcpRes != nil {
-				log.Debug("TCP scan complete", 
-					"ip", job.IPAddress, 
-					"reachable", tcpRes.Reachable, 
-					"open_ports", len(tcpRes.OpenPorts))
-				discoveredDevice.TCPResult = tcpRes
-				if tcpRes.Reachable {
-					responded = true
-				}
+
+			// 4. TCP Port Scan
+			if job.Profile.TCP.IsEnabled {
+				tcpResponse := s.performTCPScan(job, &discoveredDevice, log)
+				responded = responded || tcpResponse
 			}
 		}
 
@@ -281,4 +179,153 @@ func (s *Scanner) scanWorker(workerID int) {
 			log.Debug("Device did not respond, skipping", "ip", job.IPAddress)
 		}
 	}
+}
+
+// performICMPScan performs the ICMP scan portion of the scan job.
+// Returns true if the device responded to ICMP.
+func (s *Scanner) performICMPScan(job datamodel.ScanJob, discoveredDevice *datamodel.DiscoveredDevice, log *slog.Logger) bool {
+	if !job.Profile.ICMP.IsEnabled {
+		return false
+	}
+
+	log.Debug("Performing ICMP scan", "ip", job.IPAddress)
+	icmpRes, err := icmp.PerformPing(job.IPAddress, job.Profile.ICMP)
+	if err != nil {
+		errMsg := fmt.Sprintf("ICMP error: %v", err)
+		log.Error("ICMP scan failed", "ip", job.IPAddress, "error", err)
+		discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
+	}
+	
+	if icmpRes != nil {
+		log.Debug("ICMP scan complete",
+			"ip", job.IPAddress,
+			"reachable", icmpRes.IsReachable,
+			"sent", icmpRes.PacketsSent,
+			"received", icmpRes.PacketsReceived)
+		discoveredDevice.ICMPResult = icmpRes
+		return icmpRes.IsReachable
+	}
+	
+	return false
+}
+
+// performSNMPScan performs the SNMP scan portion of the scan job.
+// Returns true if the device responded to any SNMP query.
+func (s *Scanner) performSNMPScan(job datamodel.ScanJob, discoveredDevice *datamodel.DiscoveredDevice, log *slog.Logger) bool {
+	log.Debug("Performing SNMP scan", "ip", job.IPAddress)
+	responded := false
+
+	for _, snmpConfName := range job.Profile.SNMP.ConfigNamesOrdered {
+		snmpConf, ok := job.SNMPConfigs[snmpConfName]
+		if !ok {
+			errMsg := fmt.Sprintf("SNMP config '%s' not found in job context", snmpConfName)
+			log.Error("SNMP config missing", "ip", job.IPAddress, "config", snmpConfName)
+			discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
+			continue
+		}
+
+		log.Debug("Trying SNMP config", "ip", job.IPAddress, "config", snmpConfName)
+		snmpRes, err := snmp.PerformQuery(
+			job.IPAddress, 
+			snmpConf, 
+			job.Profile.SNMP.OIDsToQuery, 
+			s.Config.GlobalScanSettings.MaxOidsPerSNMPRequest,
+		)
+		
+		if err != nil {
+			errMsg := fmt.Sprintf("SNMP query with '%s' failed: %v", snmpConfName, err)
+			log.Error("SNMP query failed", "ip", job.IPAddress, "config", snmpConfName, "error", err)
+			discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
+			continue
+		}
+
+		if snmpRes != nil && snmpRes.SuccessfullyQueried {
+			log.Debug("SNMP query successful", "ip", job.IPAddress, "config", snmpConfName, "oids_count", len(snmpRes.QueriedData))
+			discoveredDevice.SNMPResult = snmpRes
+			responded = true // Device responded to SNMP
+			break            // Successfully queried with this config
+		} else if snmpRes != nil {
+			log.Debug("SNMP query partial results", "ip", job.IPAddress, "config", snmpConfName)
+			discoveredDevice.SNMPResult = snmpRes // Store partial results
+			responded = true                      // Device responded but may not have provided useful data
+		}
+	}
+	
+	return responded
+}
+
+// performDNSLookup performs the DNS lookup portion of the scan job.
+// Returns true if any DNS records were found.
+func (s *Scanner) performDNSLookup(job datamodel.ScanJob, discoveredDevice *datamodel.DiscoveredDevice, log *slog.Logger) bool {
+	log.Debug("Performing DNS lookups", "ip", job.IPAddress)
+
+	// Determine DNS servers to use
+	dnsServersToUse := job.Profile.DNS.DNSServers
+	if len(dnsServersToUse) == 0 {
+		dnsServersToUse = s.Config.GlobalScanSettings.DefaultDNSServers
+	}
+
+	dnsRes, errs := dns.PerformLookups(job.IPAddress, job.Profile.DNS, dnsServersToUse)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			errMsg := fmt.Sprintf("DNS error: %v", e)
+			log.Error("DNS lookup error", "ip", job.IPAddress, "error", e)
+			discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
+		}
+	}
+	
+	if dnsRes != nil {
+		// Check if any actual data was found
+		hasRecords := (job.Profile.DNS.DoReverseLookup && len(dnsRes.PTRRecords) > 0) ||
+			(job.Profile.DNS.DoForwardLookupIfReverseFound && len(dnsRes.ForwardLookupResults) > 0)
+			
+		if hasRecords {
+			log.Debug("DNS lookups found records",
+				"ip", job.IPAddress,
+				"ptr_count", len(dnsRes.PTRRecords),
+				"forward_count", len(dnsRes.ForwardLookupResults))
+		}
+		
+		discoveredDevice.DNSResult = dnsRes
+		return hasRecords
+	}
+	
+	return false
+}
+
+// performTCPScan performs the TCP port scan portion of the scan job.
+// Returns true if the device responded on any TCP port.
+func (s *Scanner) performTCPScan(job datamodel.ScanJob, discoveredDevice *datamodel.DiscoveredDevice, log *slog.Logger) bool {
+	log.Debug("Performing TCP port scan", "ip", job.IPAddress)
+
+	// Create a context with timeout for the TCP scan
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(job.Profile.TCP.TimeoutSeconds+5)*time.Second,
+	)
+	defer cancel()
+
+	tcpConfig := &datamodel.TCPConfig{
+		Enabled: job.Profile.TCP.IsEnabled,
+		Timeout: job.Profile.TCP.TimeoutSeconds,
+		Ports:   job.Profile.TCP.Ports,
+	}
+
+	tcpRes, err := tcp.ScanTCP(ctx, job.IPAddress, tcpConfig)
+	if err != nil {
+		errMsg := fmt.Sprintf("TCP scan error: %v", err)
+		log.Error("TCP scan failed", "ip", job.IPAddress, "error", err)
+		discoveredDevice.Errors = append(discoveredDevice.Errors, errMsg)
+	}
+
+	if tcpRes != nil {
+		log.Debug("TCP scan complete",
+			"ip", job.IPAddress,
+			"reachable", tcpRes.Reachable,
+			"open_ports", len(tcpRes.OpenPorts))
+		discoveredDevice.TCPResult = tcpRes
+		return tcpRes.Reachable
+	}
+	
+	return false
 }
